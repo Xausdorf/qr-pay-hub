@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  GO_VERSION: "1.25.6"
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: golangci-lint pay-core
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          working-directory: pay-core
+
+      - name: golangci-lint pay-gateway
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          working-directory: pay-gateway
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        module: [pay-core, pay-gateway]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Run unit tests
+        working-directory: ${{ matrix.module }}
+        run: go test -race -cover ./internal/...
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:14-alpine
+        env:
+          POSTGRES_USER: qrpay
+          POSTGRES_PASSWORD: qrpay_secret
+          POSTGRES_DB: qrpay
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U qrpay -d qrpay"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Apply migrations
+        run: psql "$DATABASE_URL" -f migrations/init.sql
+        env:
+          DATABASE_URL: postgres://qrpay:qrpay_secret@localhost:5432/qrpay?sslmode=disable
+
+      - name: Build & start pay-core
+        working-directory: pay-core
+        run: |
+          go build -o ../pay-core-server ./cmd/server
+          nohup ../pay-core-server &
+          sleep 3
+        env:
+          DATABASE_URL: postgres://qrpay:qrpay_secret@localhost:5432/qrpay?sslmode=disable
+          GRPC_ADDR: ":50051"
+
+      - name: Run integration tests
+        working-directory: pay-core
+        run: go test -race -v -count=1 ./tests/integration/...

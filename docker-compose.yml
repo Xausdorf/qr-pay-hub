@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:14-alpine
+    container_name: qr-pay-hub-db
+    environment:
+      POSTGRES_USER: qrpay
+      POSTGRES_PASSWORD: qrpay_secret
+      POSTGRES_DB: qrpay
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U qrpay -d qrpay" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
