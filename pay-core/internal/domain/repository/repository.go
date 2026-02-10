@@ -2,11 +2,14 @@ package repository
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 
 	"github.com/Xausdorf/qr-pay-hub/internal/domain/entity"
 )
+
+var ErrNotFound = errors.New("not found")
 
 type AccountRepository interface {
 	FindByIDForUpdate(ctx context.Context, id uuid.UUID) (*entity.Account, error)

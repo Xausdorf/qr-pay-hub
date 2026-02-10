@@ -3,6 +3,7 @@ package transfer
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
 	"github.com/google/uuid"
 
@@ -39,7 +40,7 @@ func NewUseCase(uow repository.UnitOfWork) *UseCase {
 
 func (uc *UseCase) Execute(ctx context.Context, req Request) (*Response, error) {
 	cached, err := uc.uow.Idempotency().Find(ctx, req.IdempotencyKey)
-	if err != nil {
+	if err != nil && !errors.Is(err, repository.ErrNotFound) {
 		return nil, err
 	}
 	if cached != nil {
@@ -52,12 +53,12 @@ func (uc *UseCase) Execute(ctx context.Context, req Request) (*Response, error) 
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	if err := tx.Idempotency().Lock(ctx, req.IdempotencyKey); err != nil {
-		return nil, err
+	if lockErr := tx.Idempotency().Lock(ctx, req.IdempotencyKey); lockErr != nil {
+		return nil, lockErr
 	}
 
 	cached, err = tx.Idempotency().Find(ctx, req.IdempotencyKey)
-	if err != nil {
+	if err != nil && !errors.Is(err, repository.ErrNotFound) {
 		return nil, err
 	}
 	if cached != nil {
@@ -69,8 +70,8 @@ func (uc *UseCase) Execute(ctx context.Context, req Request) (*Response, error) 
 		return nil, err
 	}
 
-	if err := sender.Debit(req.Amount); err != nil {
-		return uc.saveAndReturn(ctx, tx, req.IdempotencyKey, uuid.Nil, entity.StatusFailed, err.Error())
+	if debitErr := sender.Debit(req.Amount); debitErr != nil {
+		return uc.saveAndReturn(ctx, tx, req.IdempotencyKey, uuid.Nil, entity.StatusFailed, debitErr.Error())
 	}
 
 	receiver, err := tx.Accounts().FindByIDForUpdate(ctx, req.ToAccountID)
@@ -78,21 +79,21 @@ func (uc *UseCase) Execute(ctx context.Context, req Request) (*Response, error) 
 		return nil, err
 	}
 
-	if err := receiver.Credit(req.Amount); err != nil {
-		return nil, err
+	if creditErr := receiver.Credit(req.Amount); creditErr != nil {
+		return nil, creditErr
 	}
 
-	if err := tx.Accounts().UpdateBalance(ctx, sender.ID(), sender.Balance()); err != nil {
-		return nil, err
+	if updErr := tx.Accounts().UpdateBalance(ctx, sender.ID(), sender.Balance()); updErr != nil {
+		return nil, updErr
 	}
 
-	if err := tx.Accounts().UpdateBalance(ctx, receiver.ID(), receiver.Balance()); err != nil {
-		return nil, err
+	if updErr := tx.Accounts().UpdateBalance(ctx, receiver.ID(), receiver.Balance()); updErr != nil {
+		return nil, updErr
 	}
 
 	txn := entity.NewTransaction(req.FromAccountID, req.ToAccountID, req.Amount, entity.StatusSuccess)
-	if err := tx.Transactions().Create(ctx, txn); err != nil {
-		return nil, err
+	if createErr := tx.Transactions().Create(ctx, txn); createErr != nil {
+		return nil, createErr
 	}
 
 	return uc.saveAndReturn(ctx, tx, req.IdempotencyKey, txn.ID(), entity.StatusSuccess, "")
@@ -116,13 +117,13 @@ func (uc *UseCase) saveAndReturn(
 		return nil, err
 	}
 
-	record := entity.NewIdempotencyRecord(key, int(statusToCode(status)), body)
-	if err := tx.Idempotency().Save(ctx, record); err != nil {
-		return nil, err
+	record := entity.NewIdempotencyRecord(key, statusToCode(status), body)
+	if saveErr := tx.Idempotency().Save(ctx, record); saveErr != nil {
+		return nil, saveErr
 	}
 
-	if err := tx.Commit(ctx); err != nil {
-		return nil, err
+	if commitErr := tx.Commit(ctx); commitErr != nil {
+		return nil, commitErr
 	}
 
 	return &Response{

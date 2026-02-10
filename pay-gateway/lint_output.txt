@@ -1,0 +1,55 @@
+﻿golangci-lint : level=warning msg="[runne
+r/exclusion_rules] Skipped 0 issues by ru
+les: [Text: \"comment on exported \\\\S+ 
+\\\\S+ should be of the form \\\".+\\\"\"
+, Source: \"// ?(nolint|TODO)\", Linters:
+ \"revive, staticcheck\"]"
+At line:1 char:1
++ golangci-lint run ./... 2>&1 | Out-File
+ -FilePath lint_output.txt -En ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecifi 
+   ed: (level=warning m...staticcheck\"  
+  ]":String) [], RemoteException
+    + FullyQualifiedErrorId : NativeComm 
+   andError
+ 
+level=warning msg="[runner/exclusion_rule
+s] Skipped 0 issues by rules: [Path: \"_t
+est\\\\.go\", Linters: \"bodyclose, dupl,
+ errcheck, funlen, goconst, gosec, noctx,
+ wrapcheck\"]"
+level=warning msg="[runner/exclusion_rule
+s] Skipped 0 issues by rules: [Source: \"
+TODO\", Linters: \"godot\"]"
+level=warning msg="[runner/exclusion_rule
+s] Skipped 0 issues by rules: [Text: \"pa
+ckage comment should be of the form \\\".
++\\\"\", Source: \"// ?(nolint|TODO)\", L
+inters: \"revive\"]"
+pay-gateway\cmd\server\main.go:31:3: exitAfterDefer: os.Exit will exit, and `defer cancel()` will not run (gocritic)
+		os.Exit(1)
+		^
+pay-gateway\cmd\server\main.go:51:6: shadow: declaration of "err" shadows declaration at line 28 (govet)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		   ^
+pay-gateway\cmd\server\main.go:35:36: Magic number: 256, in <argument> detected (mnd)
+	qrGen := qrgenerator.NewGenerator(256)
+	                                  ^
+pay-gateway\cmd\server\main.go:46:22: Magic number: 5, in <assign> detected (mnd)
+		ReadHeaderTimeout: 5 * time.Second,
+		                   ^
+pay-gateway\cmd\server\main.go:59:75: Magic number: 5, in <argument> detected (mnd)
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	                                                                         ^
+pay-gateway\internal\delivery\http\router.go:15:27: Magic number: 30, in <argument> detected (mnd)
+	r.Use(middleware.Timeout(30 * time.Second))
+	                         ^
+pay-gateway\internal\delivery\http\router.go:1:9: var-naming: avoid package names that conflict with Go standard library package names (revive)
+package http
+        ^
+7 issues:
+* gocritic: 1
+* govet: 1
+* mnd: 4
+* revive: 1

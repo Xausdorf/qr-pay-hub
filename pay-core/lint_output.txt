@@ -1,0 +1,34 @@
+﻿golangci-lint : level=warning msg="[runne
+r/exclusion_rules] Skipped 0 issues by ru
+les: [Text: \"package comment should be o
+f the form \\\".+\\\"\", Source: \"// ?(n
+olint|TODO)\", Linters: \"revive\"]"
+At line:1 char:67
++ ... ecase\transfer\transfer_test.go; go
+langci-lint run ./... 2>&1 | Out-F ...
++                                      ~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecifi 
+   ed: (level=warning m...s: \"revive\"  
+  ]":String) [], RemoteException
+    + FullyQualifiedErrorId : NativeComm 
+   andError
+ 
+level=warning msg="[runner/exclusion_rule
+s] Skipped 0 issues by rules: [Text: \"co
+mment on exported \\\\S+ \\\\S+ should be
+ of the form \\\".+\\\"\", Source: \"// ?
+(nolint|TODO)\", Linters: \"revive, stati
+ccheck\"]"
+level=warning msg="[runner/exclusion_rule
+s] Skipped 0 issues by rules: [Source: \"
+TODO\", Linters: \"godot\"]"
+pay-core\internal\usecase\transfer\transfer_test.go:1:1: File is not properly formatted (goimports)
+package transfer_test
+^
+pay-core\internal\infrastructure\postgres\repositories.go:154:68: G115: integer overflow conversion uint64 -> int64 (gosec)
+	_, err := r.tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, int64(h.Sum64()&math.MaxInt64))
+	                                                                  ^
+2 issues:
+* goimports: 1
+* gosec: 1

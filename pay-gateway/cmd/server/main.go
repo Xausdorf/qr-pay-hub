@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"os"
@@ -17,6 +18,12 @@ import (
 	"github.com/Xausdorf/qr-pay-hub/pay-gateway/internal/usecase/pay"
 )
 
+const (
+	qrCodeSize            = 256
+	readHeaderTimeout     = 5 * time.Second
+	gracefulShutdownDelay = 5 * time.Second
+)
+
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
@@ -28,11 +35,12 @@ func main() {
 	paymentClient, err := grpcclient.NewClient(cfg.CoreGRPCAddr)
 	if err != nil {
 		logger.Error("grpc client init failed", "error", err)
-		os.Exit(1)
+		cancel()
+		return
 	}
 	defer paymentClient.Close()
 
-	qrGen := qrgenerator.NewGenerator(256)
+	qrGen := qrgenerator.NewGenerator(qrCodeSize)
 
 	payUC := pay.NewUseCase(paymentClient)
 	generateQRUC := generateqr.NewUseCase(qrGen)
@@ -43,20 +51,20 @@ func main() {
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,
 		Handler:           router,
-		ReadHeaderTimeout: 5 * time.Second,
+		ReadHeaderTimeout: readHeaderTimeout,
 	}
 
 	go func() {
 		logger.Info("HTTP server starting", "addr", cfg.HTTPAddr)
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Error("http serve failed", "error", err)
+		if serveErr := srv.ListenAndServe(); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
+			logger.Error("http serve failed", "error", serveErr)
 		}
 	}()
 
 	<-ctx.Done()
 	logger.Info("shutting down...")
 
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), gracefulShutdownDelay)
 	defer shutdownCancel()
 	_ = srv.Shutdown(shutdownCtx)
 }

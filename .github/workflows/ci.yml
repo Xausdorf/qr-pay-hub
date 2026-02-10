@@ -20,17 +20,16 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
-      - name: golangci-lint pay-core
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
-          working-directory: pay-core
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.8.0
 
-      - name: golangci-lint pay-gateway
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
-          working-directory: pay-gateway
+      - name: Lint pay-core
+        working-directory: pay-core
+        run: golangci-lint run
+
+      - name: Lint pay-gateway
+        working-directory: pay-gateway
+        run: golangci-lint run
 
   unit-tests:
     name: Unit Tests

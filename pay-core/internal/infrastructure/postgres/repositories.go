@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"hash/fnv"
+	"math"
 	"time"
 
 	"github.com/google/uuid"
@@ -113,7 +114,7 @@ func (r *IdempotencyRepo) Find(ctx context.Context, key string) (*entity.Idempot
 		key,
 	).Scan(&code, &body)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil
+		return nil, repository.ErrNotFound
 	}
 	if err != nil {
 		return nil, err
@@ -129,7 +130,7 @@ func (r *IdempotencyRepo) findWithTx(ctx context.Context, key string) (*entity.I
 		key,
 	).Scan(&code, &body)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil
+		return nil, repository.ErrNotFound
 	}
 	if err != nil {
 		return nil, err
@@ -150,6 +151,9 @@ func (r *IdempotencyRepo) Save(ctx context.Context, record *entity.IdempotencyRe
 func (r *IdempotencyRepo) Lock(ctx context.Context, key string) error {
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(key))
-	_, err := r.tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, int64(h.Sum64()))
+	_, err := r.tx.Exec(ctx,
+		`SELECT pg_advisory_xact_lock($1)`,
+		int64(h.Sum64()&math.MaxInt64), //nolint:gosec // G115: safe conversion
+	)
 	return err
 }

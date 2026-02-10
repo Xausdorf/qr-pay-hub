@@ -30,8 +30,8 @@ func TestDoubleSpendingAttack(t *testing.T) {
 	require.NoError(t, err)
 	defer pool.Close()
 
-	conn, err := grpc.NewClient(grpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	require.NoError(t, err)
+	conn, connErr := grpc.NewClient(grpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, connErr)
 	defer conn.Close()
 
 	client := pb.NewPaymentProcessorClient(conn)
@@ -62,15 +62,15 @@ func TestDoubleSpendingAttack(t *testing.T) {
 		go func(idx int) {
 			defer wg.Done()
 
-			resp, err := client.ProcessPayment(ctx, &pb.PaymentRequest{
+			resp, rpcErr := client.ProcessPayment(ctx, &pb.PaymentRequest{
 				IdempotencyKey: fmt.Sprintf("double-spend-%s-%d", senderID, idx),
 				FromAccountId:  senderID.String(),
 				ToAccountId:    receiverID.String(),
 				Amount:         1000,
 			})
 
-			if err != nil {
-				t.Logf("goroutine %d: error %v", idx, err)
+			if rpcErr != nil {
+				t.Logf("goroutine %d: error %v", idx, rpcErr)
 				return
 			}
 

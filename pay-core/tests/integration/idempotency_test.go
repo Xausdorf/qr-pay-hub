@@ -2,13 +2,13 @@ package integration_test
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -24,8 +24,8 @@ func TestIdempotencyNetworkRetryStorm(t *testing.T) {
 	require.NoError(t, err)
 	defer pool.Close()
 
-	conn, err := grpc.NewClient(grpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	require.NoError(t, err)
+	conn, connErr := grpc.NewClient(grpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, connErr)
 	defer conn.Close()
 
 	client := pb.NewPaymentProcessorClient(conn)
@@ -44,13 +44,13 @@ func TestIdempotencyNetworkRetryStorm(t *testing.T) {
 	})
 
 	makeRequest := func() *pb.PaymentResponse {
-		resp, err := client.ProcessPayment(ctx, &pb.PaymentRequest{
+		resp, rpcErr := client.ProcessPayment(ctx, &pb.PaymentRequest{
 			IdempotencyKey: idempotencyKey,
 			FromAccountId:  senderID.String(),
 			ToAccountId:    receiverID.String(),
 			Amount:         1000,
 		})
-		require.NoError(t, err)
+		require.NoError(t, rpcErr)
 		return resp
 	}
 
@@ -88,13 +88,13 @@ func TestIdempotencyNetworkRetryStorm(t *testing.T) {
 		for i := range workers {
 			go func(idx int) {
 				defer wg.Done()
-				resp, err := client.ProcessPayment(ctx, &pb.PaymentRequest{
+				resp, rpcErr := client.ProcessPayment(ctx, &pb.PaymentRequest{
 					IdempotencyKey: newIdempotencyKey,
 					FromAccountId:  senderID.String(),
 					ToAccountId:    receiverID.String(),
 					Amount:         500,
 				})
-				require.NoError(t, err)
+				assert.NoError(t, rpcErr)
 
 				mu.Lock()
 				responses[idx] = resp
@@ -136,8 +136,8 @@ func TestIdempotencyPreservesFailure(t *testing.T) {
 	require.NoError(t, err)
 	defer pool.Close()
 
-	conn, err := grpc.NewClient(grpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	require.NoError(t, err)
+	conn, connErr := grpc.NewClient(grpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, connErr)
 	defer conn.Close()
 
 	client := pb.NewPaymentProcessorClient(conn)
@@ -157,13 +157,13 @@ func TestIdempotencyPreservesFailure(t *testing.T) {
 
 	responses := make([]*pb.PaymentResponse, 5)
 	for i := range 5 {
-		resp, err := client.ProcessPayment(ctx, &pb.PaymentRequest{
+		resp, rpcErr := client.ProcessPayment(ctx, &pb.PaymentRequest{
 			IdempotencyKey: idempotencyKey,
 			FromAccountId:  senderID.String(),
 			ToAccountId:    receiverID.String(),
 			Amount:         500,
 		})
-		require.NoError(t, err)
+		require.NoError(t, rpcErr)
 		responses[i] = resp
 		t.Logf("retry %d: status=%s, error=%s", i, resp.GetStatus(), resp.GetErrorMessage())
 	}
@@ -184,5 +184,5 @@ func TestIdempotencyPreservesFailure(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(100), balance, "balance should remain unchanged")
 
-	fmt.Printf("Idempotency correctly preserves FAILED status across retries\n")
+	t.Logf("Idempotency correctly preserves FAILED status across retries")
 }
